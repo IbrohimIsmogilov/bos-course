@@ -489,13 +489,13 @@ window.addEventListener('resize', function(){
 });
 
 // ── ТРЕКИНГ ПРОСМОТРОВ ────────────────────────────────
+var RAILWAY_URL = 'https://bos-bot-production.up.railway.app';
+
 function trackView(badgeText, idx, title) {
   try {
-    // Сохраняем в localStorage
     var STATS_KEY = 'bos_stats';
     var stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{"watched":[],"last_title":"","last_date":""}');
     var entry = badgeText + ' — Тема ' + (idx+1) + ': ' + title;
-    // Не дублируем
     if (stats.watched.indexOf(entry) === -1) {
       stats.watched.push(entry);
     }
@@ -504,14 +504,22 @@ function trackView(badgeText, idx, title) {
     stats.total = stats.watched.length;
     localStorage.setItem(STATS_KEY, JSON.stringify(stats));
 
-    // Отправляем боту через Telegram WebApp если доступно
-    if (window.Telegram && window.Telegram.WebApp) {
-      var tg = window.Telegram.WebApp;
-      // Используем CloudStorage если доступен (не закрывает WebApp)
-      if (tg.CloudStorage) {
-        tg.CloudStorage.setItem('bos_stats', JSON.stringify(stats));
-      }
+    var user_id = 'unknown';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+      var u = window.Telegram.WebApp.initDataUnsafe.user;
+      if (u && u.id) user_id = String(u.id);
     }
+
+    fetch(RAILWAY_URL + '/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user_id,
+        phone: '',
+        day: badgeText,
+        topic: 'Тема ' + (idx+1) + ': ' + title
+      })
+    }).catch(function(){});
   } catch(e) {}
 }
 
