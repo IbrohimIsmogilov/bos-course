@@ -489,13 +489,14 @@ window.addEventListener('resize', function(){
 });
 
 // ── ТРЕКИНГ ПРОСМОТРОВ ────────────────────────────────
+// Railway API URL для статистики
+var API_URL = 'https://bos-bot-production.up.railway.app/track';
+
 function trackView(badgeText, idx, title) {
   try {
-    // Сохраняем в localStorage
     var STATS_KEY = 'bos_stats';
-    var stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{"watched":[],"last_title":"","last_date":""}');
+    var stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{"watched":[],"last_title":"","last_date":"","phone":""}');
     var entry = badgeText + ' — Тема ' + (idx+1) + ': ' + title;
-    // Не дублируем
     if (stats.watched.indexOf(entry) === -1) {
       stats.watched.push(entry);
     }
@@ -504,16 +505,57 @@ function trackView(badgeText, idx, title) {
     stats.total = stats.watched.length;
     localStorage.setItem(STATS_KEY, JSON.stringify(stats));
 
-    // Отправляем боту через Telegram WebApp если доступно
-    if (window.Telegram && window.Telegram.WebApp) {
-      var tg = window.Telegram.WebApp;
-      // Используем CloudStorage если доступен (не закрывает WebApp)
-      if (tg.CloudStorage) {
-        tg.CloudStorage.setItem('bos_stats', JSON.stringify(stats));
-      }
+    // Получаем Telegram user ID
+    var uid = '';
+    var phone = '';
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+      var user = window.Telegram.WebApp.initDataUnsafe.user;
+      if (user) uid = String(user.id);
+    }
+
+    // Отправляем на Railway API
+    if (uid && API_URL.indexOf('RAILWAY_URL') === -1) {
+      fetch(API_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          uid: uid,
+          phone: phone,
+          entry: entry,
+          date: stats.last_date
+        })
+      }).catch(function(){});
     }
   } catch(e) {}
 }
+
+// Инициализация Telegram WebApp
+(function(){
+  if (window.Telegram && window.Telegram.WebApp) {
+    var tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // При закрытии WebApp — отправляем статистику боту
+    tg.onEvent('viewportChanged', function(){});
+
+    window.addEventListener('beforeunload', function(){
+      try {
+        var STATS_KEY = 'bos_stats';
+        var stats = JSON.parse(localStorage.getItem(STATS_KEY) || 'null');
+        if (stats && stats.total > 0) {
+          tg.sendData(JSON.stringify({
+            type: 'stats',
+            watched: stats.watched,
+            last_title: stats.last_title,
+            date: stats.last_date,
+            total: stats.total
+          }));
+        }
+      } catch(e){}
+    });
+  }
+})();
 
 buildHome();buildBonus();buildTools();
 </script>
