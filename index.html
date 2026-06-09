@@ -133,6 +133,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 var G={topics:[],idx:0,badgeText:'',backFn:null,player:null,ytReady:false,playing:false,ready:false,fs:false,pendingVid:null,pendingPos:0,ctrlTimer:null,progTimer:null,saveTimer:null};
 
 var SAVE_KEY='bos_progress';
+var RAILWAY_URL='https://bos-bot-production.up.railway.app';
 
 function saveProgress(){
   try{
@@ -152,12 +153,11 @@ function saveProgress(){
 function loadProgress(){try{return JSON.parse(localStorage.getItem(SAVE_KEY)||'null');}catch(e){return null;}}
 function clearProgress(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
 
-// Периодически сохраняем позицию пока играет
 function startSaveTimer(){
   clearInterval(G.saveTimer);
   G.saveTimer=setInterval(function(){
     if(G.playing) saveProgress();
-  },5000); // каждые 5 секунд
+  },5000);
 }
 
 (function(){var t=document.createElement('script');t.src='https://www.youtube.com/iframe_api';document.head.appendChild(t);})();
@@ -169,8 +169,8 @@ function onYouTubeIframeAPIReady(){
     events:{
       onReady:function(){
         if(G.pendingVid){
-          G.player.loadVideoById({videoId:G.pendingVid, startSeconds:G.pendingPos});
-          G.pendingVid=null; G.pendingPos=0;
+          G.player.loadVideoById({videoId:G.pendingVid,startSeconds:G.pendingPos});
+          G.pendingVid=null;G.pendingPos=0;
         }
       },
       onStateChange:function(e){
@@ -182,7 +182,6 @@ function onYouTubeIframeAPIReady(){
           scheduleHide();
         } else {
           clearInterval(G.progTimer);
-          // Сохраняем позицию при паузе
           saveProgress();
           showCtrl(false);
         }
@@ -192,9 +191,9 @@ function onYouTubeIframeAPIReady(){
   });
 }
 
-function loadVideo(vid, startPos){
+function loadVideo(vid,startPos){
   clearInterval(G.progTimer);
-  G.ready=false; G.playing=false; syncPB();
+  G.ready=false;G.playing=false;syncPB();
   var pf=document.getElementById('pf');if(pf)pf.style.width='0%';
   var tc=document.getElementById('tc');if(tc)tc.textContent='0:00';
   var td=document.getElementById('td');if(td)td.textContent='0:00';
@@ -247,27 +246,19 @@ function tapVideo(){var c=document.getElementById("ctrl");if(!c)return;if(c.clas
 
 function doFS(){
   var w=document.getElementById('vw');if(!w)return;
-  
-  // Пробуем нативный fullscreen на враппере
   var req=w.requestFullscreen||w.webkitRequestFullscreen||w.mozRequestFullScreen||w.msRequestFullscreen;
   var fsEl=document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement;
-  
   if(fsEl){
     var ex=document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen;
-    if(ex) ex.call(document);
+    if(ex)ex.call(document);
     return;
   }
-  
   if(req){
     req.call(w).then(function(){
-      G.fs=true; syncFS();
-      // В fullscreen режиме iframe должен быть на весь экран
+      G.fs=true;syncFS();
       var iframe=w.querySelector('iframe');
-      if(iframe) iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
-    }).catch(function(){
-      // Нативный не работает (Telegram) — используем CSS
-      cssFS(w);
-    });
+      if(iframe)iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
+    }).catch(function(){cssFS(w);});
   } else {
     cssFS(w);
   }
@@ -282,24 +273,17 @@ function cssFS(w){
   } else {
     document.body.style.overflow='';
     document.documentElement.style.overflow='';
-    w.style.width='';
-    w.style.height='';
+    w.style.width='';w.style.height='';
     var iframe=w.querySelector('iframe');
-    if(iframe){ iframe.style.width=''; iframe.style.height=''; }
+    if(iframe){iframe.style.width='';iframe.style.height='';}
   }
   syncFS();
 }
-
 function applyFsSize(w){
-  var W=window.innerWidth;
-  var H=window.innerHeight;
-  w.style.width=W+'px';
-  w.style.height=H+'px';
+  var W=window.innerWidth,H=window.innerHeight;
+  w.style.width=W+'px';w.style.height=H+'px';
   var iframe=w.querySelector('iframe');
-  if(iframe){
-    iframe.style.width=W+'px';
-    iframe.style.height=H+'px';
-  }
+  if(iframe){iframe.style.width=W+'px';iframe.style.height=H+'px';}
 }
 function syncFS(){var b=document.getElementById('fsb');if(!b)return;b.innerHTML=G.fs?'<svg><use href="#i-xfs"/></svg>':'<svg><use href="#i-fs"/></svg>';}
 document.addEventListener('fullscreenchange',function(){if(!document.fullscreenElement){G.fs=false;syncFS();}});
@@ -307,7 +291,7 @@ document.addEventListener('webkitfullscreenchange',function(){if(!document.webki
 
 function stopVideo(){
   clearInterval(G.progTimer);clearInterval(G.saveTimer);clearTimeout(G.ctrlTimer);
-  saveProgress(); // сохраняем перед остановкой
+  saveProgress();
   if(G.player&&G.ytReady){try{G.player.stopVideo();}catch(e){}}
   G.playing=false;syncPB();hideCtrl();
 }
@@ -328,11 +312,9 @@ function openPlayer(topics,idx,badgeText,backFn,startPos){
   document.querySelectorAll('.sc,#s-player').forEach(function(s){s.classList.remove('on');});
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('on');});
   document.getElementById('s-player').classList.add('on');
-  // Сохраняем (без позиции — начало новой темы)
-  if(!startPos) saveProgress();
-  // Трекинг просмотра
-  trackView(badgeText, idx, tp.title);
-  loadVideo(vid, startPos||0);
+  if(!startPos)saveProgress();
+  trackView(badgeText,idx,tp.title);
+  loadVideo(vid,startPos||0);
 }
 
 function goPrev(){if(G.idx>0)openPlayer(G.topics,G.idx-1,G.badgeText,G.backFn);}
@@ -383,7 +365,6 @@ function continueWatch(e){
   var day=null;
   for(var i=0;i<COURSE_DATA.days.length;i++){if(COURSE_DATA.days[i].id===prog.dayId){day=COURSE_DATA.days[i];break;}}
   if(!day)return;
-  // Открываем с сохранённой позицией
   openPlayer(day.topics,prog.idx,'ДЕНЬ '+prog.dayId,function(){openDay(prog.dayId);},prog.pos||0);
 }
 
@@ -464,55 +445,44 @@ function buildTools(){
 
 function openTool(i){
   var t=COURSE_DATA.tools[i];
-  // Инструменты — открываем плейлист в Telegram браузере
   if(t.playlistUrl){
     window.open(t.playlistUrl,'_blank');
-  } else if(t.topics && t.topics.length>0){
+  } else if(t.topics&&t.topics.length>0){
     openPlayer(t.topics,0,t.title.toUpperCase(),function(){goTab('tools');});
   }
 }
 
-// Обработчик поворота экрана
-window.addEventListener('orientationchange', function(){
-  setTimeout(function(){
-    var w=document.getElementById('vw');
-    if(w&&G.fs) applyFsSize(w);
-  }, 400);
+window.addEventListener('orientationchange',function(){
+  setTimeout(function(){var w=document.getElementById('vw');if(w&&G.fs)applyFsSize(w);},400);
 });
-
-// Обработчик resize (для десктопа и landscape)
-window.addEventListener('resize', function(){
-  if(G.fs){
-    var w=document.getElementById('vw');
-    if(w) applyFsSize(w);
-  }
+window.addEventListener('resize',function(){
+  if(G.fs){var w=document.getElementById('vw');if(w)applyFsSize(w);}
 });
 
 // ── ТРЕКИНГ ПРОСМОТРОВ ────────────────────────────────
-function trackView(badgeText, idx, title) {
-  try {
-    // Сохраняем в localStorage
-    var STATS_KEY = 'bos_stats';
-    var stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{"watched":[],"last_title":"","last_date":""}');
-    var entry = badgeText + ' — Тема ' + (idx+1) + ': ' + title;
-    // Не дублируем
-    if (stats.watched.indexOf(entry) === -1) {
-      stats.watched.push(entry);
-    }
-    stats.last_title = entry;
-    stats.last_date = new Date().toLocaleDateString('ru-RU');
-    stats.total = stats.watched.length;
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+function trackView(badgeText,idx,title){
+  try{
+    var STATS_KEY='bos_stats';
+    var stats=JSON.parse(localStorage.getItem(STATS_KEY)||'{"watched":[],"last_title":"","last_date":""}');
+    var entry=badgeText+' — Тема '+(idx+1)+': '+title;
+    if(stats.watched.indexOf(entry)===-1)stats.watched.push(entry);
+    stats.last_title=entry;
+    stats.last_date=new Date().toLocaleDateString('ru-RU');
+    stats.total=stats.watched.length;
+    localStorage.setItem(STATS_KEY,JSON.stringify(stats));
 
-    // Отправляем боту через Telegram WebApp если доступно
-    if (window.Telegram && window.Telegram.WebApp) {
-      var tg = window.Telegram.WebApp;
-      // Используем CloudStorage если доступен (не закрывает WebApp)
-      if (tg.CloudStorage) {
-        tg.CloudStorage.setItem('bos_stats', JSON.stringify(stats));
-      }
+    var user_id='unknown';
+    if(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initDataUnsafe){
+      var u=window.Telegram.WebApp.initDataUnsafe.user;
+      if(u&&u.id)user_id=String(u.id);
     }
-  } catch(e) {}
+
+    fetch(RAILWAY_URL+'/track',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:user_id,phone:'',day:badgeText,topic:'Тема '+(idx+1)+': '+title})
+    }).catch(function(){});
+  }catch(e){}
 }
 
 buildHome();buildBonus();buildTools();
